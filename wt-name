@@ -1,0 +1,60 @@
+#!/usr/bin/env bash
+# wt-name — generate a context-aware worktree slug from a GitHub issue URL or string
+# Output format: pp-<verb>-<number?>-<slug>
+#
+# Usage:
+#   wt-name <url-or-string>
+#   echo "some task" | wt-name
+
+set -euo pipefail
+
+input="${1:-}"
+if [[ -z "$input" ]]; then
+  read -r input
+fi
+
+context=""
+issue_num=""
+
+# If it's a GitHub issue URL, fetch details via gh
+if [[ "$input" =~ github\.com/.+/issues/([0-9]+) ]]; then
+  issue_num="${BASH_REMATCH[1]}"
+  issue_json=$(gh issue view "$input" --json title,body,labels 2>/dev/null)
+  title=$(echo "$issue_json" | jq -r '.title')
+  labels=$(echo "$issue_json" | jq -r '[.labels[].name] | join(", ")')
+  body=$(echo "$issue_json" | jq -r '.body // ""' | head -20)
+  context="GitHub Issue #${issue_num}: ${title}"
+  [[ -n "$labels" && "$labels" != "null" ]] && context="${context}
+Labels: ${labels}"
+  [[ -n "$body" && "$body" != "null" ]] && context="${context}
+Body excerpt: ${body}"
+else
+  context="$input"
+fi
+
+# Build format and rules based on whether we have an issue number
+if [[ -n "$issue_num" ]]; then
+  format="pp-<verb>-${issue_num}-<slug>"
+  number_rule="- Third part is the issue number: ${issue_num}"
+else
+  format="pp-<verb>-<slug>"
+  number_rule=""
+fi
+
+prompt="Generate a git branch name slug for this task.
+
+Output format: ${format}
+
+Rules:
+- Always start with 'pp-'
+- Second part is an action verb that best fits the task (fix, add, update, validate, refactor, remove, migrate, implement, improve, etc.)
+${number_rule}
+- Final part is a short kebab-case description (2-5 words, most important words only)
+- All lowercase, hyphens only, no slashes or underscores
+- Output ONLY the slug on a single line, nothing else, no explanation
+
+Task:
+${context}"
+
+env -u CLAUDECODE /bin/bash -c 'cd /tmp && cat | claude -p --model claude-haiku-4-5-20251001' <<< "$prompt" | tr -d '[:space:]'
+echo

@@ -1,0 +1,84 @@
+#!/usr/bin/env bash
+# wt — git worktree switcher
+#
+# Usage:
+#   wt              — interactive fzf picker
+#   wt <name>       — switch to worktree matching name/branch (fuzzy)
+#   wt add <url|desc> — generate a slug via wt-name, create worktree + branch, switch
+
+set -euo pipefail
+
+if ! git rev-parse --git-dir > /dev/null 2>&1; then
+  echo "Error: not inside a git repository." >&2
+  exit 1
+fi
+
+_wt_cd() {
+  local path="$1"
+  if [ -n "${TMUX:-}" ]; then
+    tmux send-keys "cd $(printf '%q' "$path")" Enter
+  else
+    cd "$path" && exec "$SHELL"
+  fi
+}
+
+cmd="${1:-}"
+
+# --- wt add <branch|url|description> ----------------------------------------
+if [[ "$cmd" == "add" ]]; then
+  input="${2:-}"
+  if [[ -z "$input" ]]; then
+    echo "Usage: wt add <branch|url|description>" >&2
+    exit 1
+  fi
+  echo "Generating worktree name..." >&2
+  branch=$(wt-name "$input")
+  echo "Worktree name: $branch" >&2
+  main_root=$(git worktree list --porcelain | awk 'NR==1 { print $2 }')
+  dest="$(dirname "$main_root")/$branch"
+  if git show-ref --verify --quiet "refs/heads/$branch"; then
+    git worktree add "$dest" "$branch"
+  else
+    git worktree add -b "$branch" "$dest"
+  fi
+  _wt_cd "$dest"
+  exit 0
+fi
+
+# --- wt <name> (fuzzy match) ------------------------------------------------
+if [[ -n "$cmd" ]]; then
+  match=$(git worktree list --porcelain | awk -v name="$cmd" '
+    /^worktree / { path = $2 }
+    /^branch /   {
+      branch = $2; sub(".*/", "", branch)
+      dir = path; sub(".*/", "", dir)
+      if (tolower(dir) ~ tolower(name) || tolower(branch) ~ tolower(name)) print path
+    }
+  ' | head -1)
+  if [[ -z "$match" ]]; then
+    echo "No worktree matching: $cmd" >&2
+    git worktree list | tail -n +2 >&2
+    exit 1
+  fi
+  _wt_cd "$match"
+  exit 0
+fi
+
+# --- wt (interactive fzf picker) --------------------------------------------
+selection=$(git worktree list --porcelain \
+  | awk '
+      /^worktree / { path = $2 }
+      /^branch /   { branch = $2; sub("refs/heads/", "", branch) }
+      /^$/         { if (path && branch) print path "\t" branch; path=""; branch="" }
+      END          { if (path && branch) print path "\t" branch }
+    ' \
+  | fzf --with-nth=2 \
+        --preview='git -C {1} log --oneline --color=always -20' \
+        --preview-window=right:50% \
+        --prompt="worktree> " \
+        --delimiter=$'\t' \
+        --height=40%)
+
+[ -z "$selection" ] && exit 0
+
+_wt_cd "$(echo "$selection" | cut -f1)"

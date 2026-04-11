@@ -1,0 +1,52 @@
+#!/usr/bin/env bash
+# Start or attach to a Claude Code tmux session for the current worktree.
+# Must be run from inside a git worktree.
+
+# Validate we're in a git worktree
+if ! git rev-parse --git-dir > /dev/null 2>&1; then
+  echo "Error: not inside a git repository." >&2
+  exit 1
+fi
+
+WORKTREE_ROOT=$(git rev-parse --show-toplevel)
+
+# Warn if in the main worktree (i.e. .git is a directory, not a file)
+if [ -d "$WORKTREE_ROOT/.git" ]; then
+  echo "Warning: you're in the main worktree. Use 'wt <name>' to switch to a worktree first." >&2
+  exit 1
+fi
+
+WORKTREE_NAME=$(basename "$WORKTREE_ROOT")
+SESSION="$WORKTREE_NAME"
+
+# Helper: switch-client if inside tmux, otherwise attach
+tmux_connect() {
+  if [ -n "$TMUX" ]; then
+    exec tmux switch-client -t "$1"
+  else
+    exec tmux attach-session -t "$1"
+  fi
+}
+
+# If session already exists, kill it and rebuild
+if tmux has-session -t "$SESSION" 2>/dev/null; then
+  tmux kill-session -t "$SESSION"
+fi
+
+# Window 1: Agent (Claude Code)
+tmux new-session -d -s "$SESSION" -n "agent" -c "$WORKTREE_ROOT"
+tmux send-keys -t "$SESSION:agent" "claude --dangerously-skip-permissions --continue" Enter
+tmux set-window-option -t "$SESSION:agent" automatic-rename off
+
+# Window 2: Review (tuicr)
+tmux new-window -t "$SESSION" -n "review" -c "$WORKTREE_ROOT"
+tmux send-keys -t "$SESSION:review" "tuicr" Enter
+tmux set-window-option -t "$SESSION:review" automatic-rename off
+
+# Window 3: Terminal
+tmux new-window -t "$SESSION" -n "terminal" -c "$WORKTREE_ROOT"
+
+# Start on window 1
+tmux select-window -t "$SESSION:agent"
+
+tmux_connect "$SESSION"
