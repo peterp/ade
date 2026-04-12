@@ -4,7 +4,8 @@
 # Usage:
 #   wt              — interactive fzf picker
 #   wt <name>       — switch to worktree matching name/branch (fuzzy)
-#   wt add <url|desc> — generate a slug via wt-name, create worktree + branch, switch
+#   wt add <url|desc>      — generate a slug via wt-name, create worktree + branch, switch
+#   wt add -r <branch>     — use <branch> as-is, skip name generation
 
 set -euo pipefail
 
@@ -26,16 +27,31 @@ cmd="${1:-}"
 
 # --- wt add <branch|url|description> ----------------------------------------
 if [[ "$cmd" == "add" ]]; then
-  input="${2:-}"
+  raw=false
+  if [[ "${2:-}" == "-r" || "${2:-}" == "--raw" ]]; then
+    raw=true
+    input="${3:-}"
+  else
+    input="${2:-}"
+  fi
   if [[ -z "$input" ]]; then
-    echo "Usage: wt add <branch|url|description>" >&2
+    echo "Usage: wt add [-r] <branch|url|description>" >&2
     exit 1
   fi
-  echo "Generating worktree name..." >&2
-  branch=$(wt-name "$input")
-  echo "Worktree name: $branch" >&2
-  main_root=$(git worktree list --porcelain | awk 'NR==1 { print $2 }')
-  dest="$(dirname "$main_root")/$branch"
+  if $raw; then
+    branch="$input"
+    echo "Worktree name: $branch" >&2
+  else
+    echo "Generating worktree name..." >&2
+    branch=$(wt-name "$input")
+    echo "Worktree name: $branch" >&2
+  fi
+  remote_url=$(git remote get-url origin 2>/dev/null) || {
+    echo "Error: no origin remote found." >&2
+    exit 1
+  }
+  org_repo=$(echo "$remote_url" | sed -E 's#.*[:/]([^/]+)/([^/]+?)(\.git)?$#\1/\2#')
+  dest="$HOME/wt/$org_repo/$branch"
   if git show-ref --verify --quiet "refs/heads/$branch"; then
     git worktree add "$dest" "$branch"
   else
