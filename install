@@ -1,0 +1,93 @@
+#!/usr/bin/env bash
+# install — install ade dependencies and symlink scripts into ~/.local/bin
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# ---------------------------------------------------------------------------
+# cargo / rustup
+# ---------------------------------------------------------------------------
+if ! command -v cargo &>/dev/null; then
+  echo "Installing Rust/cargo via rustup..."
+  curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --no-modify-path
+  # shellcheck source=/dev/null
+  source "$HOME/.cargo/env"
+fi
+
+# ---------------------------------------------------------------------------
+# OS-specific package installer
+# ---------------------------------------------------------------------------
+OS="$(uname -s)"
+
+install_pkg() {
+  if [[ "$OS" == "Darwin" ]]; then
+    brew install "$@"
+  elif command -v apt-get &>/dev/null; then
+    sudo apt-get install -y "$@"
+  elif command -v dnf &>/dev/null; then
+    sudo dnf install -y "$@"
+  else
+    echo "Cannot install $*: unsupported package manager" >&2
+    return 1
+  fi
+}
+
+need() {
+  local cmd="$1"; shift
+  if command -v "$cmd" &>/dev/null; then
+    echo "  ✓ $cmd"
+  else
+    echo "  installing $cmd..."
+    "$@"
+  fi
+}
+
+echo "==> Checking dependencies..."
+
+need git      install_pkg git
+need fzf      install_pkg fzf
+need tmux     install_pkg tmux
+need gh       install_pkg gh
+need jq       install_pkg jq
+need tuicr    cargo install tuicr
+
+# claude — Claude Code CLI (npm)
+if command -v claude &>/dev/null; then
+  echo "  ✓ claude"
+else
+  echo "  installing claude..."
+  npm install -g @anthropic-ai/claude-code
+fi
+
+# ---------------------------------------------------------------------------
+# Symlink scripts
+# ---------------------------------------------------------------------------
+echo ""
+echo "==> Linking scripts to ~/.local/bin..."
+mkdir -p "$HOME/.local/bin"
+
+for script in wt wt-name code; do
+  target="$HOME/.local/bin/$script"
+  src="$SCRIPT_DIR/$script"
+  if [[ -L "$target" && "$(readlink "$target")" == "$src" ]]; then
+    echo "  ✓ $script (already linked)"
+  elif [[ -e "$target" ]]; then
+    echo "  ! $target already exists (not a symlink to this repo) — skipping"
+  else
+    ln -s "$src" "$target"
+    echo "  linked: $target"
+  fi
+done
+
+# ---------------------------------------------------------------------------
+# PATH reminder
+# ---------------------------------------------------------------------------
+if ! echo "$PATH" | tr ':' '\n' | grep -qx "$HOME/.local/bin"; then
+  echo ""
+  echo "==> Add ~/.local/bin to your PATH:"
+  echo "      export PATH=\"\$HOME/.local/bin:\$PATH\""
+fi
+
+echo ""
+echo "Done."

@@ -12,9 +12,10 @@ Navigate between git worktrees with fuzzy matching and an fzf picker.
 wt              # interactive fzf picker
 wt <name>       # switch to worktree matching name/branch (fuzzy)
 wt add <url>    # create a new worktree from a GitHub issue URL or description
+wt add -r <branch>  # use branch name as-is, skip AI name generation
 ```
 
-`wt add` calls `wt-name` to generate the branch slug via Claude, then creates the worktree and switches to it. Inside tmux it sends `cd` to the current window; outside tmux it `exec`s a new shell in the target directory.
+`wt add` calls `wt-name` to generate the branch slug via Claude, then creates the worktree and switches to it. Inside tmux it sends `cd` to the current window; outside tmux it `exec`s a new shell in the target directory. Pass `-r` / `--raw` to skip name generation and use your input directly as the branch name.
 
 ### `wt-name` — AI branch name generator
 
@@ -40,6 +41,10 @@ Launches (or relaunches) a named tmux session for the current worktree with thre
 
 Must be run from inside a linked worktree (not the main worktree).
 
+## Recommended setup
+
+Use [cmux](https://github.com/nicm/cmux) as your terminal for the best tmux integration experience.
+
 ## Dependencies
 
 | Tool | Purpose |
@@ -54,14 +59,11 @@ Must be run from inside a linked worktree (not the main worktree).
 
 ## Install
 
-Clone the repo and symlink the scripts into a directory on your `$PATH`:
+Run the install script — it handles dependencies (using cargo where available) and symlinks the scripts:
 
 ```bash
 git clone https://github.com/peterp/ade ~/gh/peterp/ade
-mkdir -p ~/.local/bin
-ln -s ~/gh/peterp/ade/wt       ~/.local/bin/wt
-ln -s ~/gh/peterp/ade/wt-name  ~/.local/bin/wt-name
-ln -s ~/gh/peterp/ade/code     ~/.local/bin/code
+~/gh/peterp/ade/install
 ```
 
 Make sure `~/.local/bin` is on your `$PATH` (add to `~/.zshrc` or `~/.bashrc` if needed):

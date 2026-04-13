@@ -19,6 +19,11 @@ fi
 WORKTREE_NAME=$(basename "$WORKTREE_ROOT")
 SESSION="$WORKTREE_NAME"
 
+# Rename cmux workspace to the folder name (if running inside cmux)
+if [[ -n "${CMUX_WORKSPACE_ID:-}" ]]; then
+  cmux rename-workspace "$WORKTREE_NAME" 2>/dev/null || true
+fi
+
 # Helper: switch-client if inside tmux, otherwise attach
 tmux_connect() {
   if [ -n "$TMUX" ]; then
