@@ -50,7 +50,7 @@ if [[ "$cmd" == "add" ]]; then
     echo "Error: no origin remote found." >&2
     exit 1
   }
-  org_repo=$(echo "$remote_url" | sed -E 's#.*[:/]([^/]+)/([^/]+?)(\.git)?$#\1/\2#')
+  org_repo=$(echo "$remote_url" | sed -E 's#.*[:/]([^/]+)/([^/]+)(\.git)?$#\1/\2#')
   dest="$HOME/wt/$org_repo/$branch"
   if git show-ref --verify --quiet "refs/heads/$branch"; then
     git worktree add "$dest" "$branch"
