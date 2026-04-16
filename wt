@@ -6,6 +6,7 @@
 #   wt <name>       — switch to worktree matching name/branch (fuzzy)
 #   wt add <url|desc>      — generate a slug via wt-name, create worktree + branch, switch
 #   wt add -r <branch>     — use <branch> as-is, skip name generation
+#   wt exit                — switch back to the main worktree
 
 set -euo pipefail
 
@@ -58,6 +59,17 @@ if [[ "$cmd" == "add" ]]; then
     git worktree add -b "$branch" "$dest"
   fi
   _wt_cd "$dest"
+  exit 0
+fi
+
+# --- wt exit ----------------------------------------------------------------
+if [[ "$cmd" == "exit" ]]; then
+  main_wt=$(git worktree list --porcelain | awk '/^worktree / { print $2; exit }')
+  if [[ -z "$main_wt" ]]; then
+    echo "Error: could not determine main worktree." >&2
+    exit 1
+  fi
+  _wt_cd "$main_wt"
   exit 0
 fi
 

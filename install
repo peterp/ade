@@ -67,7 +67,7 @@ echo ""
 echo "==> Linking scripts to ~/.local/bin..."
 mkdir -p "$HOME/.local/bin"
 
-for script in wt wt-name code; do
+for script in wt wt-name code pi; do
   target="$HOME/.local/bin/$script"
   src="$SCRIPT_DIR/$script"
   if [[ -L "$target" && "$(readlink "$target")" == "$src" ]]; then

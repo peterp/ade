@@ -1,0 +1,24 @@
+{
+  "name": "ade",
+  "version": "1.0.0",
+  "description": "Personal scripts for running pi coding agents in git worktrees with tmux.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/peterp/ade.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/peterp/ade/issues"
+  },
+  "homepage": "https://github.com/peterp/ade#readme",
+  "dependencies": {
+    "@mariozechner/pi-coding-agent": "^0.67.5",
+    "@rynfar/meridian": "^1.37.4"
+  }
+}

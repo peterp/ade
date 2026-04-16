@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+# Run pi routed through meridian (Claude Max proxy), without tmux or a worktree.
+# Auto-starts meridian in the background if it's not already on the port.
+
+set -euo pipefail
+
+SOURCE="${BASH_SOURCE[0]}"
+while [ -L "$SOURCE" ]; do
+  DIR="$(cd -P "$(dirname "$SOURCE")" && pwd)"
+  SOURCE="$(readlink "$SOURCE")"
+  [[ $SOURCE != /* ]] && SOURCE="$DIR/$SOURCE"
+done
+SCRIPT_DIR="$(cd -P "$(dirname "$SOURCE")" && pwd)"
+PI_BIN="$SCRIPT_DIR/node_modules/.bin/pi"
+MERIDIAN_BIN="$SCRIPT_DIR/node_modules/.bin/meridian"
+MERIDIAN_PORT="${MERIDIAN_PORT:-3456}"
+MERIDIAN_LOG="${TMPDIR:-/tmp}/meridian-$MERIDIAN_PORT.log"
+
+if ! nc -z 127.0.0.1 "$MERIDIAN_PORT" 2>/dev/null; then
+  echo "Starting meridian on :$MERIDIAN_PORT (logs: $MERIDIAN_LOG)..." >&2
+  nohup "$MERIDIAN_BIN" >"$MERIDIAN_LOG" 2>&1 &
+  disown || true
+  until nc -z 127.0.0.1 "$MERIDIAN_PORT" 2>/dev/null; do sleep 0.2; done
+fi
+
+exec env ANTHROPIC_API_KEY=x ANTHROPIC_BASE_URL="http://127.0.0.1:$MERIDIAN_PORT" \
+  "$PI_BIN" "$@"
