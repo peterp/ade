@@ -23,5 +23,5 @@ if ! nc -z 127.0.0.1 "$MERIDIAN_PORT" 2>/dev/null; then
   until nc -z 127.0.0.1 "$MERIDIAN_PORT" 2>/dev/null; do sleep 0.2; done
 fi
 
-exec env ANTHROPIC_API_KEY=x ANTHROPIC_BASE_URL="http://127.0.0.1:$MERIDIAN_PORT" \
-  "$PI_BIN" "$@"
+exec env ANTHROPIC_API_KEY=x MERIDIAN_BASE_URL="http://127.0.0.1:$MERIDIAN_PORT" \
+  "$PI_BIN" -e "$SCRIPT_DIR/extensions/meridian.ts" "$@"
