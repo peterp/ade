@@ -1,6 +1,20 @@
 # ade — agentic dev environment
 
-Personal scripts for running pi coding agents in git worktrees with tmux.
+Personal scripts for running the [pi](https://github.com/mariozechner/pi-coding-agent) coding agent against Claude Max, in git worktrees, with tmux.
+
+## How it works
+
+pi talks to Anthropic over its standard API. To use a Claude Max subscription instead of a pay-as-you-go API key, requests are routed through [meridian](https://github.com/rynfar/meridian) — a local proxy that translates API calls into authenticated Max requests.
+
+The wiring:
+
+1. The local `pi` wrapper (`./pi`) checks whether meridian is listening on `$MERIDIAN_PORT` (default `3456`). If not, it starts meridian in the background.
+2. It then execs `pi` with `ANTHROPIC_API_KEY=x` and `MERIDIAN_BASE_URL=http://127.0.0.1:$MERIDIAN_PORT`, loading the local [`extensions/meridian.ts`](./extensions/meridian.ts) extension.
+3. That extension calls `pi.registerProvider("anthropic", { baseUrl: MERIDIAN_BASE_URL })`, so every Anthropic call from pi goes through meridian, which forwards it to Claude using your Max auth.
+
+The `code` script wires this into a tmux layout per worktree; `wt` / `wt-name` manage the worktrees themselves.
+
+Before first use, authenticate meridian once with `claude login` (meridian piggybacks on the Claude Code CLI's credentials).
 
 ## Scripts
 
@@ -37,7 +51,7 @@ Launches (or relaunches) a named tmux session for the current worktree with thre
 
 | Window | Name | Contents |
 |--------|------|----------|
-| 1 | `agent` | `pi` via the local `pi` wrapper — auto-starts meridian in the background and loads the meridian extension |
+| 1 | `agent` | `pi` via the local `pi` wrapper — pi routed through meridian (Claude Max), with the meridian extension loaded |
 | 2 | `review` | `tuicr` (TUI code review) |
 | 3 | `terminal` | Plain shell |
 
@@ -45,12 +59,12 @@ Meridian is managed by the `pi` wrapper (see below), so there's no separate prox
 
 Must be run from inside a linked worktree (not the main worktree). Before first use, authenticate meridian once: `claude login` (see [meridian](https://github.com/rynfar/meridian) for details). Override the port with `MERIDIAN_PORT=...`.
 
-### `pi` — run pi standalone
+### `pi` — run pi standalone (via meridian)
 
-Runs `pi` routed through meridian without tmux or a worktree. Auto-starts meridian in the background if nothing is bound to `:$MERIDIAN_PORT` (default `3456`); logs go to `$TMPDIR/meridian-<port>.log`.
+Runs `pi` routed through meridian — i.e. pi talking to Claude Max — without tmux or a worktree. Auto-starts meridian in the background if nothing is bound to `:$MERIDIAN_PORT` (default `3456`); logs go to `$TMPDIR/meridian-<port>.log`. Injects `ANTHROPIC_API_KEY=x` + `MERIDIAN_BASE_URL=http://127.0.0.1:$MERIDIAN_PORT` and loads [`extensions/meridian.ts`](./extensions/meridian.ts), which points pi's anthropic provider at the local meridian instance.
 
 ```
-pi              # launch pi
+pi              # launch pi (auto-starts meridian if needed)
 pi <args>       # forwards args to pi
 ```
 
@@ -65,8 +79,8 @@ Use [cmux](https://github.com/nicm/cmux) as your terminal for the best tmux inte
 | `git` | Worktree management |
 | `fzf` | Interactive picker in `wt` |
 | `tmux` | Session management in `code` |
-| `pi` | pi coding agent — launched by `code` (installed locally via `npm install`) |
-| `meridian` | Anthropic-compatible proxy for Claude Max — auto-started by the `pi` wrapper (installed locally via `npm install`) |
+| `pi` | pi coding agent — launched by `code` via the `./pi` wrapper (installed locally via `npm install`) |
+| `meridian` | Anthropic-compatible proxy that lets pi use a Claude Max subscription — auto-started by the `pi` wrapper (installed locally via `npm install`) |
 | `nc` | Port check — used by the `pi` wrapper to detect/wait for meridian (pre-installed on macOS/Linux) |
 | `claude` | Claude Code CLI — used by `wt-name` for AI slug generation, and by `meridian` for Max auth (`claude login`) |
 | `gh` | GitHub CLI — used by `wt-name` for issue lookups |
