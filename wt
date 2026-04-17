@@ -4,9 +4,10 @@
 # Usage:
 #   wt              — interactive fzf picker
 #   wt <name>       — switch to worktree matching name/branch (fuzzy)
-#   wt add <url|desc>      — generate a slug via wt-name, create worktree + branch, switch
-#   wt add -r <branch>     — use <branch> as-is, skip name generation
-#   wt exit                — switch back to the main worktree
+#   wt add <url|desc>          — generate a slug via wt-name, create worktree + branch, switch
+#   wt add -r <branch>         — use <branch> as-is, skip name generation
+#   wt add -b <base> ...       — base the new branch off <base> instead of current HEAD
+#   wt exit                    — switch back to the main worktree
 
 set -euo pipefail
 
@@ -28,15 +29,42 @@ cmd="${1:-}"
 
 # --- wt add <branch|url|description> ----------------------------------------
 if [[ "$cmd" == "add" ]]; then
+  shift
   raw=false
-  if [[ "${2:-}" == "-r" || "${2:-}" == "--raw" ]]; then
-    raw=true
-    input="${3:-}"
-  else
-    input="${2:-}"
-  fi
+  base=""
+  input=""
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      -r|--raw)
+        raw=true
+        shift
+        ;;
+      -b|--base)
+        if [[ $# -lt 2 ]]; then
+          echo "Error: $1 requires a branch argument." >&2
+          exit 1
+        fi
+        base="$2"
+        shift 2
+        ;;
+      --)
+        shift
+        input="${1:-}"
+        break
+        ;;
+      -*)
+        echo "Unknown flag: $1" >&2
+        exit 1
+        ;;
+      *)
+        input="$1"
+        shift
+        break
+        ;;
+    esac
+  done
   if [[ -z "$input" ]]; then
-    echo "Usage: wt add [-r] <branch|url|description>" >&2
+    echo "Usage: wt add [-r] [-b <base-branch>] <branch|url|description>" >&2
     exit 1
   fi
   if $raw; then
@@ -54,9 +82,17 @@ if [[ "$cmd" == "add" ]]; then
   org_repo=$(echo "$remote_url" | sed -E 's#.*[:/]([^/]+)/([^/]+)(\.git)?$#\1/\2#')
   dest="$HOME/wt/$org_repo/$branch"
   if git show-ref --verify --quiet "refs/heads/$branch"; then
+    if [[ -n "$base" ]]; then
+      echo "Warning: branch '$branch' already exists; ignoring -b $base." >&2
+    fi
     git worktree add "$dest" "$branch"
   else
-    git worktree add -b "$branch" "$dest"
+    if [[ -n "$base" ]]; then
+      echo "Basing '$branch' off '$base'" >&2
+      git worktree add -b "$branch" "$dest" "$base"
+    else
+      git worktree add -b "$branch" "$dest"
+    fi
   fi
   _wt_cd "$dest"
   exit 0

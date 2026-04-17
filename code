@@ -9,9 +9,9 @@ while [ -L "$SOURCE" ]; do
   [[ $SOURCE != /* ]] && SOURCE="$DIR/$SOURCE"
 done
 SCRIPT_DIR="$(cd -P "$(dirname "$SOURCE")" && pwd)"
-PI_BIN="$SCRIPT_DIR/node_modules/.bin/pi"
-MERIDIAN_BIN="$SCRIPT_DIR/node_modules/.bin/meridian"
-MERIDIAN_PORT="${MERIDIAN_PORT:-3456}"
+# Use the pi wrapper, which auto-launches meridian in the background
+# and loads the meridian extension before exec'ing into pi.
+PI_WRAPPER="$SCRIPT_DIR/pi"
 
 # Validate we're in a git worktree
 if ! git rev-parse --git-dir > /dev/null 2>&1; then
@@ -49,26 +49,18 @@ if tmux has-session -t "$SESSION" 2>/dev/null; then
   tmux kill-session -t "$SESSION"
 fi
 
-# Window 1: Proxy (meridian — bridges pi → Claude Max)
-# Skip launch if another meridian is already bound to the port.
-tmux new-session -d -s "$SESSION" -n "proxy" -c "$WORKTREE_ROOT"
-tmux send-keys -t "$SESSION:proxy" \
-  "if nc -z 127.0.0.1 $MERIDIAN_PORT 2>/dev/null; then echo \"meridian already running on :$MERIDIAN_PORT\"; else $MERIDIAN_BIN; fi" Enter
-tmux set-window-option -t "$SESSION:proxy" automatic-rename off
-
-# Window 2: Agent (pi, routed through meridian)
-# Waits for meridian's port to open before launching pi.
-tmux new-window -t "$SESSION" -n "agent" -c "$WORKTREE_ROOT"
-tmux send-keys -t "$SESSION:agent" \
-  "until nc -z 127.0.0.1 $MERIDIAN_PORT 2>/dev/null; do sleep 0.2; done && ANTHROPIC_API_KEY=x ANTHROPIC_BASE_URL=http://127.0.0.1:$MERIDIAN_PORT $PI_BIN" Enter
+# Window 1: Agent (pi wrapper — auto-starts meridian in the background
+# and loads the meridian extension).
+tmux new-session -d -s "$SESSION" -n "agent" -c "$WORKTREE_ROOT"
+tmux send-keys -t "$SESSION:agent" "$PI_WRAPPER" Enter
 tmux set-window-option -t "$SESSION:agent" automatic-rename off
 
-# Window 3: Review (tuicr)
+# Window 2: Review (tuicr)
 tmux new-window -t "$SESSION" -n "review" -c "$WORKTREE_ROOT"
 tmux send-keys -t "$SESSION:review" "tuicr" Enter
 tmux set-window-option -t "$SESSION:review" automatic-rename off
 
-# Window 4: Terminal
+# Window 3: Terminal
 tmux new-window -t "$SESSION" -n "terminal" -c "$WORKTREE_ROOT"
 
 # Start on agent window
